@@ -163,7 +163,8 @@ class Decoder():
         if "gpt3" in args.model:
             response = decoder_for_gpt3(args, input, max_length, i, k)
         elif "bloom" in args.model:
-            response = decoder_for_bloom(args, input, max_length, i, k)
+            function = decoder_for_bloom_api if "api" in args.model else decoder_for_bloom
+            response = function(args, input, max_length, i, k)
             # FIXME remove the original text
         return response
 

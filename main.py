@@ -107,7 +107,7 @@ def parse_arguments():
     
     # TODO bloom-api, bloom-350m, bloom-3b2, etc..
     parser.add_argument(
-        "--model", type=str, default="gpt3", choices=["gpt3", "gpt3-medium", "gpt3-large", "gpt3-xl", "bloom-1b3", "bloom-2b5", "bloom"], help="model used for decoding. Note that 'gpt3' are the smallest models."
+        "--model", type=str, default="gpt3", choices=["gpt3", "gpt3-medium", "gpt3-large", "gpt3-xl", "bloom-1b3", "bloom-2b5", "bloom", "bloom-api"], help="model used for decoding. Note that 'gpt3' are the smallest models."
     )
     
     parser.add_argument(
