@@ -1,4 +1,6 @@
+from platform import mac_ver
 from statistics import mean
+from unittest.util import _MAX_LENGTH
 from torch.utils.data import Dataset
 from collections import OrderedDict
 import xml.etree.ElementTree as ET
@@ -15,6 +17,9 @@ import random
 import time
 import datetime
 import pandas as pd
+
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
+import requests
 
 # https://review-of-my-life.blogspot.com/2017/11/python-dict-shuffle.html
 def shuffleDict(d):
@@ -49,6 +54,64 @@ def print_now(return_flag=0):
         return now
     else:
         pass
+
+
+def decoder_for_bloom(args, input, max_length, i, k):
+    #model_name = "bigscience/bloom-1b3"
+    model_name = "bigscience/bloom-2b5"
+
+    model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)  # torch.bfloat16
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+
+    inputs = tokenizer(input, return_tensors="pt")
+    output = model.generate(inputs["input_ids"].to(0), max_length, top_k=5, temperature=0)
+
+    result = tokenizer.decode(output[0].tolist())
+    print(result)
+    return result
+
+def decoder_for_bloom_api(args, input, max_length, i, k):
+
+    # Mimic the setup for GPT3
+    # TODO API limits in HF?
+    time.sleep(args.api_time_interval)
+
+    API_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
+    API_URL = "https://api-inference.huggingface.co/models/bigscience/bloom"
+
+    headers = {"Authorization": f"Bearer {API_TOKEN}"}
+
+    def query(payload):
+        response = requests.post(API_URL, headers=headers, json=payload)
+        return response.json()
+
+    payload = {
+        "inputs": input,
+        "parameters": {
+            "max_new_tokens": max_length,
+            "temperature": 0,
+            "return_full_text": False
+            },
+        "options": {
+            # "wait_for_model": True,
+            "use_gpu": False, # NOTE requires HF's Startup plan or better
+        }
+    }
+
+    # FIXME "model is overloaded" API error response
+    result = query(payload)
+    done = False
+    while not done:
+        if 'error' in result:
+            print(f'Error response: {result["error"]}')
+            time.sleep(5.0)
+            pass
+        else:
+            done = True
+
+    print(result)
+    return result
+
 
 # Sentence Generator (Decoder) for GPT-3 ...
 def decoder_for_gpt3(args, input, max_length, i, k):
@@ -89,7 +152,11 @@ class Decoder():
         print_now()
  
     def decode(self, args, input, max_length, i, k):
-        response = decoder_for_gpt3(args, input, max_length, i, k)
+        if "gpt3" in args.model:
+            response = decoder_for_gpt3(args, input, max_length, i, k)
+        elif "bloom" in args.model:
+            response = decoder_for_bloom(args, input, max_length, i, k)
+            # FIXME remove the original text
         return response
 
 def data_reader(args):

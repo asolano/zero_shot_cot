@@ -105,8 +105,9 @@ def parse_arguments():
     
     parser.add_argument("--max_num_worker", type=int, default=3, help="maximum number of workers for dataloader")
     
+    # TODO bloom-api, bloom-350m, bloom-3b2, etc..
     parser.add_argument(
-        "--model", type=str, default="gpt3", choices=["gpt3", "gpt3-medium", "gpt3-large", "gpt3-xl"], help="model used for decoding. Note that 'gpt3' are the smallest models."
+        "--model", type=str, default="gpt3", choices=["gpt3", "gpt3-medium", "gpt3-large", "gpt3-xl", "bloom"], help="model used for decoding. Note that 'gpt3' are the smallest models."
     )
     
     parser.add_argument(
