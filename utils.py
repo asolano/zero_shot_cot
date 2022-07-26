@@ -57,8 +57,16 @@ def print_now(return_flag=0):
 
 
 def decoder_for_bloom(args, input, max_length, i, k):
-    #model_name = "bigscience/bloom-1b3"
-    model_name = "bigscience/bloom-2b5"
+    if args.model == "bloom":
+        # FIXME Use pre-downloaded weights on ABCI group shared storage
+        # Using "bigscience/bloom" will download the ~350G to the ~/.cache/huggingface/transformers
+        model_name = "/groups/gcb50389/datasets/Bloom/bloom/"
+    elif args.model == "bloom-2b5":
+        model_name = "bigscience/bloom-2b5"
+    elif args.model == "bloom-1b3":
+        model_name = "bigscience/bloom-1b3"
+    else:
+        raise ValueError("model is not properly defined ...")
 
     model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)  # torch.bfloat16
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
