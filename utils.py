@@ -82,7 +82,7 @@ def decoder_for_bloom_api(args, input, max_length, i, k):
     headers = {"Authorization": f"Bearer {API_TOKEN}"}
 
     def query(payload):
-        response = requests.post(API_URL, headers=headers, json=payload)
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=5.0)
         return response.json()
 
     payload = {
