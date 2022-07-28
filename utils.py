@@ -20,6 +20,8 @@ import pandas as pd
 
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 import requests
+import datetime
+
 
 # https://review-of-my-life.blogspot.com/2017/11/python-dict-shuffle.html
 def shuffleDict(d):
@@ -56,21 +58,7 @@ def print_now(return_flag=0):
         pass
 
 
-def decoder_for_bloom(args, input, max_length, i, k):
-    if args.model == "bloom":
-        # FIXME Use pre-downloaded weights on ABCI group shared storage
-        # Using "bigscience/bloom" will download the ~350G to the ~/.cache/huggingface/transformers
-        model_name = "/groups/gcb50389/datasets/Bloom/bloom/"
-    elif args.model == "bloom-2b5":
-        model_name = "bigscience/bloom-2b5"
-    elif args.model == "bloom-1b3":
-        model_name = "bigscience/bloom-1b3"
-    else:
-        raise ValueError("model is not properly defined ...")
-
-    model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)  # torch.bfloat16
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-
+def decoder_for_bloom(model, tokenizer, args, input, max_length, i, k):
     inputs = tokenizer(input, return_tensors="pt")
     output = model.generate(inputs["input_ids"].to(0), max_length, top_k=5, temperature=0)
 
@@ -158,15 +146,43 @@ def decoder_for_gpt3(args, input, max_length, i, k):
 class Decoder():
     def __init__(self, args):
         print_now()
- 
+        self.bloom_model = None
+        self.bloom_tokenizer = None
+
     def decode(self, args, input, max_length, i, k):
         if "gpt3" in args.model:
             response = decoder_for_gpt3(args, input, max_length, i, k)
         elif "bloom" in args.model:
-            function = decoder_for_bloom_api if "api" in args.model else decoder_for_bloom
-            response = function(args, input, max_length, i, k)
-            # FIXME remove the original text
+            if "api" in args.model:
+                response = decoder_for_bloom_api(args, input, max_length, i, k)
+            else:
+                if self.bloom_model is None:
+                    self.bloom_model, self.bloom_tokenizer = self.load_model(args)
+                response = decoder_for_bloom(self.bloom_model, self.bloom_tokenizer, args, input, max_length, i, k)
+
+        # FIXME remove the original text?
+        response = response[len(input):]
         return response
+
+    def load_model(self, args):
+        if args.model == "bloom":
+            # FIXME Use pre-downloaded weights on ABCI group shared storage
+            # Using "bigscience/bloom" will download the ~350G to the ~/.cache/huggingface/transformers
+            model_name = "/groups/gcb50389/datasets/Bloom/bloom/"
+        elif args.model == "bloom-2b5":
+            model_name = "bigscience/bloom-2b5"
+        elif args.model == "bloom-1b3":
+            model_name = "bigscience/bloom-1b3"
+        else:
+            raise ValueError("model is not properly defined ...")
+
+        load_start = datetime.datetime.now()
+        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)
+        load_end = datetime.datetime.now()
+        print(f'Loading took {load_end - load_start}')
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+        return model, tokenizer
 
 def data_reader(args):
 
