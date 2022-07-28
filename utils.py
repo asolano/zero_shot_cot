@@ -160,8 +160,8 @@ class Decoder():
                     self.bloom_model, self.bloom_tokenizer = self.load_model(args)
                 response = decoder_for_bloom(self.bloom_model, self.bloom_tokenizer, args, input, max_length, i, k)
 
-        # FIXME remove the original text?
-        response = response[len(input):]
+            # remove the original text
+            response = response[len(input):]
         return response
 
     def load_model(self, args):
