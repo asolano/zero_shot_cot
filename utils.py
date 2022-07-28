@@ -60,10 +60,14 @@ def print_now(return_flag=0):
 
 def decoder_for_bloom(model, tokenizer, args, input, max_length, i, k):
     inputs = tokenizer(input, return_tensors="pt")
+
+    gen_start = datetime.datetime.now()
     output = model.generate(inputs["input_ids"].to(0), max_length, top_k=5, temperature=0)
+    gen_end = datetime.datetime.now()
+    print(f'Generation of {len(output[0])} tokens took {(gen_end - gen_start).total_seconds()} seconds ( {len(output[0]) / (gen_end - gen_start).total_seconds()} tokens/sec)')
 
     result = tokenizer.decode(output[0].tolist())
-    print(result)
+    # print(result)
     return result
 
 def decoder_for_bloom_api(args, input, max_length, i, k):
@@ -179,7 +183,7 @@ class Decoder():
         load_start = datetime.datetime.now()
         model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)
         load_end = datetime.datetime.now()
-        print(f'Loading took {load_end - load_start}')
+        print(f'Loading took {(load_end - load_start).total_seconds()} seconds')
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
         return model, tokenizer
