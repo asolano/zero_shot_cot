@@ -62,7 +62,7 @@ def decoder_for_bloom(model, tokenizer, args, input, max_length, i, k):
     inputs = tokenizer(input, return_tensors="pt")
 
     gen_start = datetime.datetime.now()
-    output = model.generate(inputs["input_ids"].to(0), max_length, num_beans=1, do_sample=True)
+    output = model.generate(inputs["input_ids"].to(0), max_length, num_beams=1, do_sample=True)
     gen_end = datetime.datetime.now()
     print(f'Generation of {len(output[0])} tokens took {(gen_end - gen_start).total_seconds()} seconds ( {len(output[0]) / (gen_end - gen_start).total_seconds()} tokens/sec)')
 
