@@ -173,12 +173,12 @@ class Decoder():
             # FIXME Use pre-downloaded weights on ABCI group shared storage
             # Using "bigscience/bloom" will download the ~350G to the ~/.cache/huggingface/transformers
             model_name = "/groups/gcb50389/datasets/Bloom/bloom/"
-        elif args.model == "bloom-6b3":
-            model_name = "bigscience/bloom-6b3"
-        elif args.model == "bloom-2b5":
-            model_name = "bigscience/bloom-2b5"
-        elif args.model == "bloom-1b3":
-            model_name = "bigscience/bloom-1b3"
+        elif args.model == "bloom-7b1":
+            model_name = "bigscience/bloom-7b1"
+        elif args.model == "bloom-3b":
+            model_name = "bigscience/bloom-3b"
+        elif args.model == "bloom-1b7":
+            model_name = "bigscience/bloom-1b7"
         else:
             raise ValueError("model is not properly defined ...")
 
