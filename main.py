@@ -131,6 +131,9 @@ def parse_arguments():
     parser.add_argument(
         "--log_dir", type=str, default="./log/", help="log directory"
     )
+    parser.add_argument(
+        "--int8", action="store_true", help="Use bitsandbytes int8 optimizers (Bloom)"
+    )
     
     args = parser.parse_args()
     

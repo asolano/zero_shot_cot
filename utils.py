@@ -183,7 +183,24 @@ class Decoder():
             raise ValueError("model is not properly defined ...")
 
         load_start = datetime.datetime.now()
-        model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)
+        if args.int8:
+            free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
+            max_memory = f'{free_in_GB-2}GB'
+            print(f"Free memory: {free_in_GB}, max_memory={max_memory}")
+
+            n_gpus = torch.cuda.device_count()
+            max_memory = {i: max_memory for i in range(n_gpus)}
+            print(f"Found {n_gpus} GPUS")
+
+            # Use bitandbytes int8 optimizers
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map='auto',
+                load_in_8bit=True,
+                max_memory=max_memory
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)
         load_end = datetime.datetime.now()
         print(f'Loading took {(load_end - load_start).total_seconds()} seconds')
 
