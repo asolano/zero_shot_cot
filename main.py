@@ -11,6 +11,11 @@ def main():
     print('*****************************')
     print(args)
     print('*****************************')
+
+
+    if 'gpt' in args.model or 'api' in args.model:
+        # FIXME change minibatch_size to 1 automaticaly?
+        assert args.minibatch_size == 1, "APIs do not currently accept batched inputs"
     
     fix_seed(args.random_seed)
     
@@ -21,6 +26,8 @@ def main():
     decoder = Decoder(args)
     
     print("setup data loader ...")
+    #import pdb; pdb.set_trace()
+
     dataloader = setup_data_loader(args)
     print_now()
     
@@ -39,17 +46,25 @@ def main():
                 
         # Prepare question template ...
         x, y = data
-        x = "Q: " + x[0] + "\n" + "A:"
-        y = y[0].strip()
+
+        #x = "Q: " + x[0] + "\n" + "A:"
+        #x = f"Q: {x[0]}\nA:"
+        x = [f"Q: {a}\nA:" for a in x]
+        #y = y[0].strip()
+        y = [a.strip() for a in y]
         
         if args.method == "zero_shot":
-            x = x + " " + args.direct_answer_trigger_for_zeroshot
+            #x = x + " " + args.direct_answer_trigger_for_zeroshot
+            x = [f"{a} {args.direct_answer_trigger_for_zeroshot}" for a in x]
         elif args.method == "zero_shot_cot":
-            x = x + " " + args.cot_trigger
+            #x = x + " " + args.cot_trigger
+            x = [f"{a} {args.cot_trigger}" for a in x]
         elif args.method == "few_shot":
-            x = demo + x
+            #x = demo + x
+            x = [f"{demo}{a}" for a in x]
         elif args.method == "few_shot_cot":
-            x = demo + x
+            #x = demo + x
+            x = [f"{demo}{a}" for a in x]
         else:
             raise ValueError("method is not properly defined ...")
         
@@ -58,27 +73,38 @@ def main():
         z = decoder.decode(args, x, max_length, i, 1)
 
         # Answer extraction for zero-shot-cot ...
+        # FIXME 
         if args.method == "zero_shot_cot":
-            z2 = x + z + " " + args.direct_answer_trigger_for_zeroshot_cot
+            #z2 = x + z + " " + args.direct_answer_trigger_for_zeroshot_cot
+            def f(x, z):
+                return f"{x}{z} {args.direct_answer_trigger_for_zeroshot_cot}"
             max_length = args.max_length_direct
+            z2 = [f(a, b) for (a, b) in zip(x, z) ]
             pred = decoder.decode(args, z2, max_length, i, 2)
-            print(z2 + pred)
+            #print(z2 + pred)
+            for index, p in enumerate(pred):
+                print(f"{z2[index]}{p}")
         else:
             pred = z
-            print(x + pred)
+            #print(x + pred)
+            for index,p in enumerate(pred):
+                print(f"{x[index]}{p}")
 
         # Clensing of predicted answer ...
-        pred = answer_cleansing(args, pred)
+        pred = [ answer_cleansing(args, p) for p in pred ]
         
         # Choose the most frequent answer from the list ...
-        print("pred : {}".format(pred))
-        print("GT : " + y)
-        print('*************************')
+        for index, p in enumerate(pred):
+            print('*************************')
+            print(f"pred : {p}")
+            print(f"GT : {y[index]}")
+            print('*************************')
         
-        # Checking answer ...
-        correct = (np.array([pred]) == np.array([y])).sum().item()
-        correct_list.append(correct)
-        total += 1 #np.array([y]).size(0)
+            # Checking answer ...
+            #correct = (np.array([pred]) == np.array([y])).sum().item()
+            correct = (np.array([p]) == np.array([y[index]])).sum().item()
+            correct_list.append(correct)
+            total += 1 #np.array([y]).size(0)
         
         if (args.limit_dataset_size != 0) and ((i+1) >= args.limit_dataset_size):
             break
@@ -101,7 +127,7 @@ def parse_arguments():
         "--dataset", type=str, default="aqua", choices=["aqua", "gsm8k", "commonsensqa", "addsub", "multiarith",  "strategyqa", "svamp", "singleeq", "bigbench_date", "object_tracking", "coin_flip", "last_letters"], help="dataset used for experiment"
     )
     
-    parser.add_argument("--minibatch_size", type=int, default=1, choices=[1], help="minibatch size should be 1 because GPT-3 API takes only 1 input for each request")
+    parser.add_argument("--minibatch_size", type=int, default=1, help="minibatch size should be 1 because GPT-3 API takes only 1 input for each request")
     
     parser.add_argument("--max_num_worker", type=int, default=3, help="maximum number of workers for dataloader")
     

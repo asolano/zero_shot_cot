@@ -59,14 +59,18 @@ def print_now(return_flag=0):
 
 
 def decoder_for_bloom(model, tokenizer, args, input, max_length, i, k):
-    inputs = tokenizer(input, return_tensors="pt")
+    inputs = tokenizer(input, padding=True, return_tensors="pt")
 
     gen_start = datetime.datetime.now()
-    output = model.generate(inputs["input_ids"].to(0), max_length, num_beams=1, do_sample=True)
+    # NOTE use last GPU for batched input
+    data_device_id = torch.cuda.device_count() - 1
+    # FIXME the name max_length is misleading
+    output = model.generate(inputs["input_ids"].to(data_device_id), max_new_tokens=max_length, num_beams=1, do_sample=True, temperature=0.001)
     gen_end = datetime.datetime.now()
     print(f'Generation of {len(output[0])} tokens took {(gen_end - gen_start).total_seconds()} seconds ( {len(output[0]) / (gen_end - gen_start).total_seconds()} tokens/sec)')
 
-    result = tokenizer.decode(output[0].tolist())
+    #result = tokenizer.decode(output[0].tolist())
+    result = tokenizer.batch_decode(output, skip_special_tokens=True)
     # print(result)
     return result
 
@@ -86,10 +90,10 @@ def decoder_for_bloom_api(args, input, max_length, i, k):
         return response.json()
 
     payload = {
-        "inputs": input,
+        "inputs": input[0], # API does not accept batches
         "parameters": {
             "max_new_tokens": max_length,
-            "temperature": 0,
+            "temperature": 0.001, # FIXME Needs to be >0
             "return_full_text": False
             },
         "options": {
@@ -159,13 +163,15 @@ class Decoder():
         elif "bloom" in args.model:
             if "api" in args.model:
                 response = decoder_for_bloom_api(args, input, max_length, i, k)
+                #import pdb; pdb.set_trace()
+                response = [ response[0]['generated_text'] ]
+                
             else:
                 if self.bloom_model is None:
                     self.bloom_model, self.bloom_tokenizer = self.load_model(args)
                 response = decoder_for_bloom(self.bloom_model, self.bloom_tokenizer, args, input, max_length, i, k)
-
             # remove the original text
-            response = response[len(input):]
+            response = [ r[ len(input[i]): ] for i,r in enumerate(response) ]
         return response
 
     def load_model(self, args):
@@ -173,6 +179,8 @@ class Decoder():
             # FIXME Use pre-downloaded weights on ABCI group shared storage
             # Using "bigscience/bloom" will download the ~350G to the ~/.cache/huggingface/transformers
             model_name = "/groups/gcb50389/datasets/Bloom/bloom/"
+            # local cache
+            #model_name = os.path.join(os.environ['SGE_LOCALDIR'], 'bloom')
         elif args.model == "bloom-7b1":
             model_name = "bigscience/bloom-7b1"
         elif args.model == "bloom-3b":
@@ -184,6 +192,7 @@ class Decoder():
 
         load_start = datetime.datetime.now()
         if args.int8:
+            # Use bitandbytes int8 optimizers
             free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
             max_memory = f'{free_in_GB-2}GB'
             print(f"Free memory: {free_in_GB}, max_memory={max_memory}")
@@ -192,7 +201,6 @@ class Decoder():
             max_memory = {i: max_memory for i in range(n_gpus)}
             print(f"Found {n_gpus} GPUS")
 
-            # Use bitandbytes int8 optimizers
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 device_map='auto',
@@ -200,6 +208,7 @@ class Decoder():
                 max_memory=max_memory
             )
         else:
+            # Use bfloat16 to reduce size
             model = AutoModelForCausalLM.from_pretrained(model_name, use_cache=True, device_map="auto", torch_dtype=torch.bfloat16)
         load_end = datetime.datetime.now()
         print(f'Loading took {(load_end - load_start).total_seconds()} seconds')
