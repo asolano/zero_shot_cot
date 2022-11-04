@@ -1,5 +1,6 @@
 import argparse
 import logging
+from re import M
 import torch
 import random
 import time
@@ -101,7 +102,7 @@ def batch_work(i, data, demo, decoder, args):
         new_correct.append(correct)
 
     for entry in logs:
-        print(entry)
+        print(entry, flush=True)
 
     return new_correct
 
@@ -335,21 +336,36 @@ def parse_arguments():
 
     cot_triggers = {
         1: "Let's think step by step.",
-        2: "We should think about this step by step.",
+        #2: "We should think about this step by step.",
         3: "First,",
         4: "Before we dive into the answer,",
-        5: "Proof followed by the answer.",
-        6: "Let's think step by step in a realistic way.",
-        7: "Let's think step by step using common sense and knowledge.",
+        #5: "Proof followed by the answer.",
+        #6: "Let's think step by step in a realistic way.",
+        #7: "Let's think step by step using common sense and knowledge.",
         8: "Let's think like a detective step by step.",
-        9: "Let's think about this logically.",
-        10: "Let's think step by step. First,",
+        #9: "Let's think about this logically.",
+        #10: "Let's think step by step. First,",
         11: "Let's think",
         12: "Let's solve this problem by splitting it into steps.",
         13: "The answer is after the proof.",
         14: "Let's be realistic and think step by step.",
-        # TODO From meta reviewer
+        # From meta reviewer
         15: "Let's solve the problem bit by bit.",
+        16: "If we solve the problem stepwise,",
+        17: "If we solve the problem gradually,",
+        18: "If we solve the problem piecemeal,",
+        19: "Let's be smart about this.",
+        20: "Let's be careful we get the right answer.",
+        21: "Let's make sure we get the right answer.",
+        # From GPT-3 
+        22: "Let's try to understand.",
+        23: "Think about it a little more.",
+        24: "Think about it in more detail.",
+        25: "Let's do it step by step.",
+        26: "Let's do it a little at a time.",
+        27: "Let's go through it step by step.",
+        28: "Let's divide it into parts.",
+        29: "Let's take it slow.",
     }
     try:
         args.cot_trigger = cot_triggers[args.cot_trigger_no]
