@@ -60,6 +60,26 @@ def print_now(return_flag=0):
         pass
 
 
+
+def decoder_for_opt(model, tokenizer, args, input, max_length, i, k):
+    #FIXME padding="longest"
+    inputs = tokenizer(input, padding=True, return_tensors="pt")
+    gen_start = datetime.datetime.now()
+    
+    output = model.generate(
+        inputs["input_ids"],
+        max_new_tokens=max_length,
+        num_beams=1,
+        do_sample=True,
+        temperature=0.001,
+        #num_return_sequences=1
+    )
+
+    gen_end = datetime.datetime.now()
+    result = tokenizer.batch_decode(output, skip_special_tokens=True)
+    return result
+    
+    
 def decoder_for_bloom(model, tokenizer, args, input, max_length, i, k):
     inputs = tokenizer(input, padding=True, return_tensors="pt")
 
@@ -163,15 +183,30 @@ class Decoder:
         self.bloom_model = None
         self.bloom_tokenizer = None
 
+        self.opt_model = None
+        self.opt_tokenizer = None
+
     def decode(self, args, input, max_length, i, k):
         if "gpt3" in args.model:
             response = decoder_for_gpt3(args, input, max_length, i, k)
+        elif "opt" in args.model:
+            if self.opt_model is None:
+                self.opt_model, self.opt_tokenizer = self.load_opt_model(args)
+            response = decoder_for_opt(
+                self.opt_model,
+                self.opt_tokenizer,
+                args,
+                input,
+                max_length,
+                i,
+                k)
+            # remove the original text
+            response = [r[len(input[i]) :] for i, r in enumerate(response)]
         elif "bloom" in args.model:
             if "api" in args.model:
                 response = decoder_for_bloom_api(args, input, max_length, i, k)
                 # import pdb; pdb.set_trace()
                 response = [response[0]["generated_text"]]
-
             else:
                 if self.bloom_model is None:
                     self.bloom_model, self.bloom_tokenizer = self.load_model(args)
@@ -187,6 +222,30 @@ class Decoder:
             # remove the original text
             response = [r[len(input[i]) :] for i, r in enumerate(response)]
         return response
+
+
+    def load_opt_model(self, args):
+        # NOTE from Alpa textgen.py example
+        # We have to use the 30B version because other versions have some issues.
+        # The 30B version works for all OPT models.
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-30b", use_fast=False)
+        tokenizer.add_bos_token = False
+
+        # FIXME try..except import 
+        from llm_serving.model.wrapper import get_model
+
+        load_start = datetime.datetime.now()
+        #model_name = "alpa/opt-2.7b"
+        model_name = "alpa/opt-175b"
+        model = get_model(model_name=model_name,
+                          path="~/opt_weights",
+                          batch_size=args.minibatch_size)
+
+        load_end = datetime.datetime.now()
+        print(f"Loading took {(load_end - load_start).total_seconds()} seconds")
+
+        return model, tokenizer
+
 
     def load_model(self, args):
         if args.model == "bloom":

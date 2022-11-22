@@ -214,6 +214,7 @@ def parse_arguments():
             "bloom-7b1",
             "bloom",
             "bloom-api",
+            "opt",
         ],
         help="model used for decoding. Note that 'gpt3' are the smallest models.",
     )
@@ -321,7 +322,11 @@ def parse_arguments():
     }
     try:
         data = datasets[args.dataset]
-        args.dataset_path = data["path"]
+
+        abs_path = os.path.abspath(os.path.dirname(__file__))
+        path = os.path.join(abs_path, data["path"])
+        args.dataset_path = path
+
         args.direct_answer_trigger = data["trigger"]
         args.plausible_answer_trigger = data["plausible_trigger"]
     except KeyError:
@@ -343,7 +348,7 @@ def parse_arguments():
         #6: "Let's think step by step in a realistic way.",
         #7: "Let's think step by step using common sense and knowledge.",
         8: "Let's think like a detective step by step.",
-        #9: "Let's think about this logically.",
+        9: "Let's think about this logically.",
         #10: "Let's think step by step. First,",
         11: "Let's think",
         12: "Let's solve this problem by splitting it into steps.",
