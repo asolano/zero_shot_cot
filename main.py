@@ -44,11 +44,12 @@ def batch_work(i, data, demo, decoder, args):
     # Answer prediction by generating text ...
     max_length = args.max_length_cot if "cot" in args.method else args.max_length_direct
     z = decoder.decode(args, x, max_length, i, 1)
+    #import pdb; pdb.set_trace()
 
     # TODO After here z should not contain more any Q: or A: element, they are hallucinated
     # import pdb; pdb.set_trace()
-    z = [s[: s.find("Q:")] for s in z]
-    z = [s[: s.find("A:")] for s in z]
+    z = [ s[: s.find("Q:")] if "Q:" in s else s for s in z ] 
+    z = [ s[: s.find("A:")] if "A:" in s else s for s in z ]
 
     logs = ["" for _ in x]
     # FIXME group logs by entry in the batch
@@ -66,8 +67,8 @@ def batch_work(i, data, demo, decoder, args):
         # print(z2 + pred)
 
         # Remove the Q: A: here too
-        pred = [s[: s.find("Q:")] for s in pred]
-        pred = [s[: s.find("A:")] for s in pred]
+        pred = [s[: s.find("Q:")] if "Q:" in s else s for s in pred]
+        pred = [s[: s.find("A:")] if "A:" in s else s for s in pred]
 
         for index, p in enumerate(pred):
             # print(f"{z2[index]}{p}")
@@ -215,6 +216,7 @@ def parse_arguments():
             "bloom",
             "bloom-api",
             "opt",
+            "flan-t5-xxl"
         ],
         help="model used for decoding. Note that 'gpt3' are the smallest models.",
     )

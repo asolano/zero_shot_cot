@@ -21,6 +21,8 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 import requests
 import datetime
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+
 
 
 # https://review-of-my-life.blogspot.com/2017/11/python-dict-shuffle.html
@@ -59,6 +61,22 @@ def print_now(return_flag=0):
     else:
         pass
 
+
+def decoder_for_flan(model, tokenizer, args, input, max_length, i, k):
+    inputs = tokenizer(input, padding=True, return_tensors="pt")
+    gen_start = datetime.datetime.now()
+    
+    output = model.generate(
+        inputs["input_ids"],
+        max_new_tokens=max_length,
+        num_beams=1,
+        do_sample=True,
+        temperature=0.001,
+    )
+
+    gen_end = datetime.datetime.now()
+    result = tokenizer.batch_decode(output, skip_special_tokens=True)
+    return result
 
 
 def decoder_for_opt(model, tokenizer, args, input, max_length, i, k):
@@ -177,6 +195,7 @@ def decoder_for_gpt3(args, input, max_length, i, k):
     return response["choices"][0]["text"]
 
 
+# TODO refactor
 class Decoder:
     def __init__(self, args):
         print_now()
@@ -185,6 +204,9 @@ class Decoder:
 
         self.opt_model = None
         self.opt_tokenizer = None
+
+        self.flan_model = None
+        self.flan_tokenizer = None
 
     def decode(self, args, input, max_length, i, k):
         if "gpt3" in args.model:
@@ -221,6 +243,20 @@ class Decoder:
                 )
             # remove the original text
             response = [r[len(input[i]) :] for i, r in enumerate(response)]
+        elif "flan" in args.model:
+            if self.flan_model is None:
+                self.flan_model, self.flan_tokenizer = self.load_flan_model(args)
+            response = decoder_for_flan(
+                self.flan_model,
+                self.flan_tokenizer,
+                args,
+                input,
+                max_length,
+                i,
+                k)
+            # FIXME remove the original text
+            #response = [r[len(input[i]) :] for i, r in enumerate(response)]
+
         return response
 
 
@@ -246,6 +282,18 @@ class Decoder:
 
         return model, tokenizer
 
+    def load_flan_model(self, args):
+        # FIXME fp16, int8
+        model_name = "google/flan-t5-xxl"
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+
+        load_start = datetime.datetime.now()
+        model = T5ForConditionalGeneration.from_pretrained(model_name, device_map="auto")
+        load_end = datetime.datetime.now()
+        print(f"Loading took {(load_end - load_start).total_seconds()} seconds")
+
+        return model, tokenizer
+
 
     def load_model(self, args):
         if args.model == "bloom":
@@ -257,6 +305,7 @@ class Decoder:
         elif args.model == "bloom-7b1":
             model_name = "bigscience/bloom-7b1"
         elif args.model == "bloom-3b":
+
             model_name = "bigscience/bloom-3b"
         elif args.model == "bloom-1b7":
             model_name = "bigscience/bloom-1b7"
