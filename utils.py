@@ -90,7 +90,6 @@ def decoder_for_opt(model, tokenizer, args, input, max_length, i, k):
         num_beams=1,
         do_sample=True,
         temperature=0.001,
-        #num_return_sequences=1
     )
 
     gen_end = datetime.datetime.now()
@@ -211,6 +210,7 @@ class Decoder:
     def decode(self, args, input, max_length, i, k):
         if "gpt3" in args.model:
             response = decoder_for_gpt3(args, input, max_length, i, k)
+
         elif "opt" in args.model:
             if self.opt_model is None:
                 self.opt_model, self.opt_tokenizer = self.load_opt_model(args)
@@ -223,11 +223,12 @@ class Decoder:
                 i,
                 k)
             # remove the original text
-            response = [r[len(input[i]) :] for i, r in enumerate(response)]
+            #response = [r[len(input[i]) :] for i, r in enumerate(response)]
+            response = [ r.replace(input[i], '') for i, r in enumerate(response) ]
+            
         elif "bloom" in args.model:
             if "api" in args.model:
                 response = decoder_for_bloom_api(args, input, max_length, i, k)
-                # import pdb; pdb.set_trace()
                 response = [response[0]["generated_text"]]
             else:
                 if self.bloom_model is None:
@@ -242,7 +243,8 @@ class Decoder:
                     k,
                 )
             # remove the original text
-            response = [r[len(input[i]) :] for i, r in enumerate(response)]
+            #response = [r[len(input[i]) :] for i, r in enumerate(response)]
+            response = [ r.replace(input[i], '') for i, r in enumerate(response) ]
         elif "flan" in args.model:
             if self.flan_model is None:
                 self.flan_model, self.flan_tokenizer = self.load_flan_model(args)
@@ -254,8 +256,6 @@ class Decoder:
                 max_length,
                 i,
                 k)
-            # FIXME remove the original text
-            #response = [r[len(input[i]) :] for i, r in enumerate(response)]
 
         return response
 
@@ -264,7 +264,8 @@ class Decoder:
         # NOTE from Alpa textgen.py example
         # We have to use the 30B version because other versions have some issues.
         # The 30B version works for all OPT models.
-        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-30b", use_fast=False)
+        #tokenizer = AutoTokenizer.from_pretrained("facebook/opt-30b", use_fast=False)
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-2.7b", use_fast=False)
         tokenizer.add_bos_token = False
 
         # FIXME try..except import 
@@ -272,7 +273,9 @@ class Decoder:
 
         load_start = datetime.datetime.now()
         #model_name = "alpa/opt-2.7b"
+        #model_name = "alpa/opt-66b"
         model_name = "alpa/opt-175b"
+
         model = get_model(model_name=model_name,
                           path="~/opt_weights",
                           batch_size=args.minibatch_size)
@@ -528,7 +531,7 @@ def setup_data_loader(args):
 # ver 0.2
 def answer_cleansing(args, pred):
 
-    # print("pred_before : " + pred)
+    #print(f"Extract Answer: before={pred}", flush=True)
 
     if args.method in ("few_shot", "few_shot_cot"):
         preds = pred.split(args.direct_answer_trigger_for_fewshot)
@@ -578,7 +581,7 @@ def answer_cleansing(args, pred):
         if pred[-1] == ".":
             pred = pred[:-1]
 
-    # print("pred_after : " + pred)
+    #print(f"Extract Answer: after={pred}", flush=True)
 
     return pred
 

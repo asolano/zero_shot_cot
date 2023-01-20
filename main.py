@@ -6,27 +6,22 @@ import random
 import time
 import os
 from utils import *
+import re
 
 
 def prepare_question_template(data, demo, args):
     x, y = data
-    # x = "Q: " + x[0] + "\n" + "A:"
-    # x = f"Q: {x[0]}\nA:"
-    x = [f"Q: {a}\nA:" for a in x]
-    # y = y[0].strip()
+
+    x = [f"Q: {q}\nA:" for q in x]
     y = [a.strip() for a in y]
 
     if args.method == "zero_shot":
-        # x = x + " " + args.direct_answer_trigger_for_zeroshot
         x = [f"{a} {args.direct_answer_trigger_for_zeroshot}" for a in x]
     elif args.method == "zero_shot_cot":
-        # x = x + " " + args.cot_trigger
         x = [f"{a} {args.cot_trigger}" for a in x]
     elif args.method == "few_shot":
-        # x = demo + x
         x = [f"{demo}{a}" for a in x]
     elif args.method == "few_shot_cot":
-        # x = demo + x
         x = [f"{demo}{a}" for a in x]
     else:
         raise ValueError("method is not properly defined ...")
@@ -34,70 +29,66 @@ def prepare_question_template(data, demo, args):
     return x, y
 
 
+def remove_redundant_pattern(s, pattern):
+    found = list(re.finditer(pattern, s))
+    if len(found) > 0:
+        index = found[0].span()[0]
+        s = s[:index]
+    return s
+
+
 def batch_work(i, data, demo, decoder, args):
-    print("*************************")
-    print("{}st data".format(i + 1))
+    print("*" * 20)
+    print(f"batch {i+1}")
 
-    # Prepare question template ...
-    x, y = prepare_question_template(data, demo, args)
+    prompts, true_answers = prepare_question_template(data, demo, args)
 
-    # Answer prediction by generating text ...
     max_length = args.max_length_cot if "cot" in args.method else args.max_length_direct
-    z = decoder.decode(args, x, max_length, i, 1)
-    #import pdb; pdb.set_trace()
+    
+    predictions = decoder.decode(args, prompts, max_length, i, 1)
 
-    # TODO After here z should not contain more any Q: or A: element, they are hallucinated
-    # import pdb; pdb.set_trace()
-    z = [ s[: s.find("Q:")] if "Q:" in s else s for s in z ] 
-    z = [ s[: s.find("A:")] if "A:" in s else s for s in z ]
-
-    logs = ["" for _ in x]
-    # FIXME group logs by entry in the batch
+    # After here z should not contain any Q: or A: elements
+    predictions = [ remove_redundant_pattern(p, 'Q:') for p in predictions ] 
+    predictions = [ remove_redundant_pattern(p, 'A:') for p in predictions ] 
 
     # Answer extraction for zero-shot-cot ...
-    # FIXME
     if args.method == "zero_shot_cot":
-        # z2 = x + z + " " + args.direct_answer_trigger_for_zeroshot_cot
-        def f(x, z):
-            return f"{x}{z} {args.direct_answer_trigger_for_zeroshot_cot}"
-
+        # Do a second prediction with the answer trigger
         max_length = args.max_length_direct
-        z2 = [f(a, b) for (a, b) in zip(x, z)]
-        pred = decoder.decode(args, z2, max_length, i, 2)
-        # print(z2 + pred)
+
+        prompts_cot = [f"{p1}{p2} {args.direct_answer_trigger_for_zeroshot_cot}" for (p1, p2) in zip(prompts, predictions)]
+        predictions_cot = decoder.decode(args, prompts_cot, max_length, i, 2)
+
+        print(f'>>>\nDEBUG predictions_cot[0]: {predictions_cot[0]}')
 
         # Remove the Q: A: here too
-        pred = [s[: s.find("Q:")] if "Q:" in s else s for s in pred]
-        pred = [s[: s.find("A:")] if "A:" in s else s for s in pred]
+        predictions_cot = [ remove_redundant_pattern(s, 'Q:') for s in predictions_cot ] 
+        predictions_cot = [ remove_redundant_pattern(s, 'A:') for s in predictions_cot ]
 
-        for index, p in enumerate(pred):
-            # print(f"{z2[index]}{p}")
-            logs[index] += f"{z2[index]}{p}" + "\n"
-    else:
-        pred = z
-        # print(x + pred)
-        for index, p in enumerate(pred):
-            # print(f"{x[index]}{p}")
-            logs[index] += f"{x[index]}{p}" + "\n"
+        print(f'DEBUG predictions_cot[0] (after filter): {predictions_cot[0]}\n<<<\n')
 
-    # Clensing of predicted answer ...
-    pred = [answer_cleansing(args, p) for p in pred]
+        prompts = prompts_cot
+        predictions = predictions_cot
+
+    # Log predictions
+    logs = []
+    for i, p in enumerate(predictions):
+        logs.append(f'{prompts[i]}{p}')
+
+    # Extract answer
+    answers = [answer_cleansing(args, p) for p in predictions]
 
     # Choose the most frequent answer from the list ...
     new_correct = []
-    for index, p in enumerate(pred):
-        # print("*************************")
-        # print(f"pred : {p}")
-        # print(f"GT : {y[index]}")
-        # print("*************************")
-        logs[index] += "*" * 20 + "\n"
-        logs[index] += f"prediction={p}\n"
-        logs[index] += f"truth={y[index]}\n"
-        logs[index] += "*" * 20 + "\n"
+    for i, a in enumerate(answers):
+        logs[i] += "\n" + "*" * 20 + "\n"
+        logs[i] += f"prediction={a}\n"
+        logs[i] += f"truth={true_answers[i]}\n"
+        logs[i] += "*" * 20 + "\n"
 
         # Checking answer ...
         # correct = (np.array([pred]) == np.array([y])).sum().item()
-        correct = (np.array([p]) == np.array([y[index]])).sum().item()
+        correct = (np.array([a]) == np.array([true_answers[i]])).sum().item()
         # correct_list.append(correct)
         # total += 1  # np.array([y]).size(0)
         new_correct.append(correct)
@@ -127,7 +118,6 @@ def main():
     decoder = Decoder(args)
 
     print("setup data loader ...")
-    # import pdb; pdb.set_trace()
 
     dataloader = setup_data_loader(args)
     print_now()
